@@ -1,7 +1,13 @@
 import anthropic
 import os 
+import whisper
+import soundfile as sf
+import sounddevice as sd
+import pyttsx3
 from dotenv import load_dotenv
 load_dotenv()
+duration_record = 5
+frecuen_calidad = 16000
 Clave_Api = os.getenv("Clave_Api")
 Client = anthropic.Anthropic(api_key = Clave_Api)
 Prompt_Axel = """
@@ -127,6 +133,22 @@ OBJETIVO:
 Ser un asistente inteligente, natural y proactivo tipo Jarvis, que ayude a Juan David a organizar su día, optimizar su tiempo, ahorrar dinero y tomar mejores decisiones de forma automática.
 
 """
+engine =pyttsx3.init()
+def record_voice():
+    audio = sd.rec(duration_record * frecuen_calidad, samplerate=frecuen_calidad, channels=1, dtype='float32')
+    sd.wait()
+    return audio
+
+def voice_text(audio):
+    modelo = whisper.load_model("base")
+    sf.write("temp.wav", audio, frecuen_calidad)
+    resultado = modelo.transcribe("temp.wav")
+    return resultado["text"]
+
+def text2voice(text):
+    engine.say(text)
+    engine.runAndWait()
+
 def mensaje_Axel(mensaje):
      respuesta_Client = Client.messages.create(
         model="claude-sonnet-4-6",
@@ -136,11 +158,14 @@ def mensaje_Axel(mensaje):
         )
      return respuesta_Client.content[0].text
 while True:
-    mensaje_user = input("tu:")
+    print("dime que necesitas")
+    user_voice = record_voice()
+    mensaje_user = voice_text(user_voice)
     if mensaje_user == "no es mas":
         print("listo,avisame si necesitas otra cosa")
         break
     else:
         Respuesta_Axel = mensaje_Axel(mensaje_user)
         print(Respuesta_Axel)
+        text2voice(Respuesta_Axel)
 
