@@ -5,6 +5,7 @@ import soundfile as sf
 import sounddevice as sd
 import pyttsx3
 import datetime
+import requests
 from dotenv import load_dotenv
 load_dotenv()
 duration_record = 5
@@ -156,8 +157,29 @@ def contexto_dia():
      dia = ahora.strftime("%A")
      return hora,dia
 
-def mensaje_Axel(mensaje, hora, dia):
-    prompt_actual = Prompt_Axel.replace("{hora}", hora).replace("{dia_semana}", dia)
+def clima_bga():
+    url = "https://api.open-meteo.com/v1/forecast?latitude=7.1254&longitude=-73.1198&current_weather=true"
+    respuesta = requests.get(url)
+    datos = respuesta.json()["current_weather"]
+    temperatura = datos["temperature"]
+    codigo_clima = datos["weathercode"]
+    condiciones = {
+    0: "despejado",
+    1: "mayormente despejado", 
+    2: "parcialmente nublado",
+    3: "nublado",
+    45: "neblina",
+    61: "lluvia leve",
+    63: "lluvia moderada",
+    65: "lluvia fuerte",
+    80: "chubascos leves",
+    95: "tormenta"
+}
+    clima = condiciones.get(codigo_clima, "clima desconocido")
+    return clima, temperatura
+
+def mensaje_Axel(mensaje, hora, dia, clima, temperatura):
+    prompt_actual = Prompt_Axel.replace("{hora}", hora).replace("{dia_semana}", dia).replace("{clima}", clima).replace("{temperatura}", str(temperatura))
     respuesta_Client = Client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
@@ -167,6 +189,7 @@ def mensaje_Axel(mensaje, hora, dia):
     return respuesta_Client.content[0].text
 while True:
     hora,dia = contexto_dia()
+    clima, temperatura = clima_bga()
     print("dime que necesitas")
     user_voice = record_voice()
     mensaje_user = voice_text(user_voice)
@@ -174,7 +197,7 @@ while True:
         print("listo,avisame si necesitas otra cosa")
         break
     else:
-        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia)
+        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia, clima, temperatura)
         print(Respuesta_Axel)
         text2voice(Respuesta_Axel)
 
