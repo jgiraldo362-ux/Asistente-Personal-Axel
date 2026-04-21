@@ -4,6 +4,7 @@ import whisper
 import soundfile as sf
 import sounddevice as sd
 import pyttsx3
+import datetime
 from dotenv import load_dotenv
 load_dotenv()
 duration_record = 5
@@ -149,15 +150,23 @@ def text2voice(text):
     engine.say(text)
     engine.runAndWait()
 
-def mensaje_Axel(mensaje):
-     respuesta_Client = Client.messages.create(
+def contexto_dia():
+     ahora = datetime.datetime.now()
+     hora = ahora.strftime("%I:%M %p")
+     dia = ahora.strftime("%A")
+     return hora,dia
+
+def mensaje_Axel(mensaje, hora, dia):
+    prompt_actual = Prompt_Axel.replace("{hora}", hora).replace("{dia_semana}", dia)
+    respuesta_Client = Client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
-        system = Prompt_Axel, 
+        system = prompt_actual,
         messages=[{"role": "user", "content": mensaje}]
-        )
-     return respuesta_Client.content[0].text
+    )
+    return respuesta_Client.content[0].text
 while True:
+    hora,dia = contexto_dia()
     print("dime que necesitas")
     user_voice = record_voice()
     mensaje_user = voice_text(user_voice)
@@ -165,7 +174,7 @@ while True:
         print("listo,avisame si necesitas otra cosa")
         break
     else:
-        Respuesta_Axel = mensaje_Axel(mensaje_user)
+        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia)
         print(Respuesta_Axel)
         text2voice(Respuesta_Axel)
 
