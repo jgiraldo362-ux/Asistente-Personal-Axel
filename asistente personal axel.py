@@ -8,6 +8,9 @@ import datetime
 import requests
 from dotenv import load_dotenv
 load_dotenv()
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 duration_record = 5
 frecuen_calidad = 16000
 Clave_Api = os.getenv("Clave_Api")
@@ -178,8 +181,37 @@ def clima_bga():
     clima = condiciones.get(codigo_clima, "clima desconocido")
     return clima, temperatura
 
-def mensaje_Axel(mensaje, hora, dia, clima, temperatura):
-    prompt_actual = Prompt_Axel.replace("{hora}", hora).replace("{dia_semana}", dia).replace("{clima}", clima).replace("{temperatura}", str(temperatura))
+SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+def personal_calendar():
+    creds = None
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    if not creds or not creds.valid:
+        flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
+        creds = flow.run_local_server(port=0)
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+    service = build("calendar", "v3", credentials=creds)
+    ahora = datetime.datetime.utcnow().isoformat() + "Z"
+    eventos = service.events().list(
+        calendarId="primary",
+        timeMin=ahora,
+        maxResults=5,
+        singleEvents=True,
+        orderBy="startTime"
+    ).execute()
+    items = eventos.get("items", [])
+    if not items:
+        return "Sin compromisos hoy"
+    agenda = []
+    for evento in items:
+        titulo = evento["summary"]
+        hora_evento = evento["start"].get("dateTime", evento["start"].get("date"))
+        agenda.append(f"{titulo} a las {hora_evento}")
+    return ", ".join(agenda)
+
+def mensaje_Axel(mensaje, hora, dia, clima, temperatura, agenda):
+    prompt_actual = Prompt_Axel.replace(("{hora}", hora).replace("{dia_semana}", dia).replace("{clima}", clima).replace("{temperatura}", str(temperatura)).replace("{agenda}, agenda"))
     respuesta_Client = Client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
@@ -190,6 +222,7 @@ def mensaje_Axel(mensaje, hora, dia, clima, temperatura):
 while True:
     hora,dia = contexto_dia()
     clima, temperatura = clima_bga()
+    agenda = personal_calendar() 
     print("dime que necesitas")
     user_voice = record_voice()
     mensaje_user = voice_text(user_voice)
@@ -197,7 +230,7 @@ while True:
         print("listo,avisame si necesitas otra cosa")
         break
     else:
-        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia, clima, temperatura)
+        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia, clima, temperatura, agenda)
         print(Respuesta_Axel)
         text2voice(Respuesta_Axel)
 
