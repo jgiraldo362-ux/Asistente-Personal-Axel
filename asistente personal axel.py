@@ -12,6 +12,17 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import feedparser
+import json
+
+def leer_hoy():
+    with open("hoy.json", "r") as f:
+        return json.load(f)
+    
+def escribe_hoy(datos):
+    with open("hoy.json", "w") as f:
+        json.dump(datos, f)
+
+
 duration_record = 5
 frecuen_calidad = 16000
 Clave_Api = os.getenv("Clave_Api")
@@ -182,7 +193,6 @@ def clima_bga():
     clima = condiciones.get(codigo_clima, "clima desconocido")
     return clima, temperatura
 
-
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 def personal_calendar():
     creds = None
@@ -212,8 +222,16 @@ def personal_calendar():
         agenda.append(f"{titulo} a las {hora_evento}")
     return ", ".join(agenda)
 
+def noticias_axel():
+    url = "https://www.vanguardia.com/rss.xml"
+    feedparser = feedparser.parse(url)
+    noticias = []
+    for entry in feed.entries[:3]:
+        noticias.append(entry.title)
+    return ",".join(noticias)
+
 def mensaje_Axel(mensaje, hora, dia, clima, temperatura, agenda):
-    prompt_actual = Prompt_Axel.replace(("{hora}", hora).replace("{dia_semana}", dia).replace("{clima}", clima).replace("{temperatura}", str(temperatura)).replace("{agenda}, agenda"))
+    prompt_actual = Prompt_Axel.replace(("{hora}", hora).replace("{dia_semana}", dia).replace("{clima}", clima).replace("{temperatura}", str(temperatura)).replace("{agenda}, agenda").replace("{noticias}, noticias").replace("{vehiculo_ayer}", memoria["vehiculo_ayer"]))
     respuesta_Client = Client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=500,
@@ -222,17 +240,29 @@ def mensaje_Axel(mensaje, hora, dia, clima, temperatura, agenda):
     )
     return respuesta_Client.content[0].text
 while True:
+    memoria = leer_hoy()
     hora,dia = contexto_dia()
     clima, temperatura = clima_bga()
+    noticias = noticias_axel()
     agenda = personal_calendar() 
     print("dime que necesitas")
     user_voice = record_voice()
     mensaje_user = voice_text(user_voice)
+    if "no madrugo mañana" in mensaje_user.lower():
+        memoria["alarma_mañana"] = "desactivada"
+        escribe_hoy(memoria)
+    if "fui en carro" in mensaje_user.lower():
+        memoria["vehiculo_ayer"] = "carro"
+        escribe_hoy(memoria)
+    if "fui en moto" in mensaje_user.lower():
+        memoria["vehiculo_ayer"] = "moto"
+        escribe_hoy(memoria)
+
     if mensaje_user == "no es mas":
         print("listo,avisame si necesitas otra cosa")
         break
     else:
-        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia, clima, temperatura, agenda)
+        Respuesta_Axel = mensaje_Axel(mensaje_user, hora, dia, clima, temperatura, agenda, noticias, memoria)
         print(Respuesta_Axel)
         text2voice(Respuesta_Axel)
 
