@@ -11,6 +11,7 @@ load_dotenv()
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+import feedparser
 duration_record = 5
 frecuen_calidad = 16000
 Clave_Api = os.getenv("Clave_Api")
@@ -180,6 +181,7 @@ def clima_bga():
 }
     clima = condiciones.get(codigo_clima, "clima desconocido")
     return clima, temperatura
+
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 def personal_calendar():
